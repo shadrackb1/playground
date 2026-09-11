@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mines · Playground</title>
+  <style>
+    body { margin:0; background:#0b1220; color:#e2e8f0; font-family:ui-monospace,Menlo,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:24px; }
+    h1 { font-size:18px; margin-bottom:8px; }
+    .hud { color:#64748b; font-size:13px; margin-bottom:12px; display:flex; gap:20px; }
+    #board { display:grid; grid-template-columns:repeat(10,28px); gap:3px; }
+    .cell {
+      width:28px; height:28px; border-radius:4px; background:#1e293b; border:1px solid #334155;
+      display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer; user-select:none;
+    }
+    .cell.open { background:#0f172a; border-color:#0f172a; }
+    .cell.mine { background:#7f1d1d; }
+    .n1{color:#7dd3fc}.n2{color:#34d399}.n3{color:#fbbf24}.n4{color:#f472b6}.n5{color:#c084fc}
+    button { margin-top:14px; background:transparent; color:#22d3ee; border:1px solid #22d3ee; border-radius:8px; padding:8px 14px; font-family:inherit; cursor:pointer; }
+    p { color:#64748b; font-size:12px; margin-top:12px; }
+    a { color:#22d3ee; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <h1>Mines</h1>
+  <div class="hud"><span>Mines <b id="mines">15</b></span><span>Flags <b id="flags">0</b></span><span id="state"></span></div>
+  <div id="board"></div>
+  <button id="new">New board</button>
+  <p>Click to open · right-click to flag · <a href="index.html">back</a></p>
+  <script>
+    const N=10, M=15;
+    let grid, open, flags, dead, won;
+    const board=document.getElementById('board');
+    function idx(i,j){return i*N+j;}
+    function reset(){
+      grid=Array(N*N).fill(0); open=Array(N*N).fill(false); flags=Array(N*N).fill(false);
+      dead=won=false; document.getElementById('state').textContent='';
+      // place mines
+      let placed=0;
+      while(placed<M){
+        const k=(Math.random()*N*N)|0;
+        if(grid[k]!==-1){ grid[k]=-1; placed++; }
+      }
+      // counts
+      for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+        if(grid[idx(i,j)]===-1) continue;
+        let c=0;
+        for(let di=-1;di<=1;di++)for(let dj=-1;dj<=1;dj++){
+          const ii=i+di,jj=j+dj;
+          if(ii>=0&&jj>=0&&ii<N&&jj<N&&grid[idx(ii,jj)]===-1) c++;
+        }
+        grid[idx(i,j)]=c;
+      }
+      draw();
+    }
+    function neighbors(i,j){
+      const out=[];
+      for(let di=-1;di<=1;di++)for(let dj=-1;dj<=1;dj++){
+        const ii=i+di,jj=j+dj;
+        if(ii>=0&&jj>=0&&ii<N&&jj<N) out.push([ii,jj]);
+      }
+      return out;
+    }
+    function flood(i,j){
+      if(i<0||j<0||i>=N||j>=N) return;
+      const k=idx(i,j);
+      if(open[k]||flags[k]) return;
+      open[k]=true;
+      if(grid[k]===0) neighbors(i,j).forEach(([a,b])=>flood(a,b));
+    }
+    function check(){
+      const closed=grid.filter((_,k)=>!open[k]).length;
+      if(closed===M){ won=true; document.getElementById('state').textContent='cleared'; }
+    }
+    function draw(){
+      board.innerHTML='';
+      for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+        const k=idx(i,j);
+        const d=document.createElement('div');
+        d.className='cell';
+        if(open[k]){
+          d.classList.add('open');
+          if(grid[k]===-1){ d.classList.add('mine'); d.textContent='*'; }
+          else if(grid[k]>0){ d.textContent=grid[k]; d.classList.add('n'+grid[k]); }
+        } else if(flags[k]) d.textContent='⚑';
+        d.onclick=()=>{
+          if(dead||won||flags[k]) return;
+          if(grid[k]===-1){ dead=true; open[k]=true; document.getElementById('state').textContent='boom'; open.forEach((o,i)=>{ if(grid[i]===-1) open[i]=true; }); draw(); return; }
+          flood(i,j); check(); draw();
+        };
+        d.oncontextmenu=e=>{
+          e.preventDefault();
+          if(open[k]||dead||won) return;
+          flags[k]=!flags[k];
+          document.getElementById('flags').textContent=flags.filter(Boolean).length;
+          draw();
+        };
+        board.appendChild(d);
+      }
+    }
+    document.getElementById('new').onclick=reset;
+    reset();
+  </script>
+</body>
+</html>
