@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RIS Lab · Playground</title>
+  <style>
+    :root { --bg:#0b1220; --panel:#0f172a; --line:#1e293b; --text:#e2e8f0; --muted:#64748b; --cyan:#22d3ee; --violet:#818cf8; --green:#34d399; --amber:#f59e0b; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--bg); color:var(--text); min-height:100vh; padding:24px; }
+    header { max-width:920px; margin:0 auto 20px; }
+    .kicker { color:var(--cyan); letter-spacing:3px; font-size:12px; margin-bottom:8px; }
+    h1 { font-size:22px; margin-bottom:6px; }
+    .sub { color:var(--muted); font-size:13px; max-width:560px; line-height:1.5; }
+    .grid { max-width:920px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    @media (max-width:720px){ .grid{ grid-template-columns:1fr; } }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+    .card h2 { font-size:12px; letter-spacing:2px; color:#94a3b8; margin-bottom:10px; }
+    textarea, input {
+      width:100%; background:#020617; border:1px solid var(--line); border-radius:8px;
+      color:var(--text); font-family:inherit; font-size:13px; padding:10px; resize:vertical;
+    }
+    button {
+      margin-top:10px; background:transparent; color:var(--cyan); border:1px solid var(--cyan);
+      border-radius:8px; padding:8px 14px; font-family:inherit; cursor:pointer;
+    }
+    button:hover { background:#083344; }
+    .out { margin-top:12px; font-size:13px; line-height:1.6; color:#cbd5e1; white-space:pre-wrap; }
+    .cite { color:var(--violet); font-size:12px; margin-top:8px; }
+    .chip { display:inline-block; font-size:11px; padding:3px 8px; border:1px solid var(--line); border-radius:999px; color:var(--muted); margin:0 5px 5px 0; }
+    a { color:var(--cyan); text-decoration:none; }
+    .pipe { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+    .step { font-size:11px; padding:6px 10px; border-radius:8px; border:1px solid var(--line); color:var(--muted); }
+    .step.on { border-color:var(--cyan); color:var(--cyan); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="kicker">PLAYGROUND · RESEARCH IN A STICK</div>
+    <h1>RIS lab (browser mock)</h1>
+    <p class="sub">Toy version of the offline RAG loop: drop text, get a grounded answer with a fake citation. Real product runs Ollama + ChromaDB on a USB stick. This is the interaction, not the model.</p>
+  </header>
+
+  <div class="grid">
+    <div class="card" style="grid-column:1/-1">
+      <h2>PIPELINE</h2>
+      <div class="pipe" id="pipe">
+        <div class="step" data-s="0">ingest</div>
+        <div class="step" data-s="1">chunk</div>
+        <div class="step" data-s="2">embed</div>
+        <div class="step" data-s="3">retrieve</div>
+        <div class="step" data-s="4">local LLM</div>
+        <div class="step" data-s="5">cite</div>
+      </div>
+      <div style="margin-top:10px">
+        <span class="chip">no cloud</span>
+        <span class="chip">LangChain</span>
+        <span class="chip">ChromaDB</span>
+        <span class="chip">Ollama</span>
+        <span class="chip">APA · Vancouver · Harvard</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>DOCUMENT</h2>
+      <textarea id="doc" rows="10">Article 26 of the Constitution of Kenya protects equality and freedom from discrimination.
+Every citizen has a right to education under Article 43.
+The right to fair administrative action is in Article 47.
+Arrested persons must be brought before a court within 24 hours under Article 49.</textarea>
+      <button id="run">Run local RAG</button>
+    </div>
+
+    <div class="card">
+      <h2>ANSWER</h2>
+      <div class="out" id="out">Paste a document, then run. Browser mock uses keyword match, not a real model.</div>
+      <div class="cite" id="cite"></div>
+    </div>
+  </div>
+
+  <p style="max-width:920px;margin:16px auto 0;font-size:12px;color:var(--muted)">
+    <a href="index.html">back to playground</a> · real system: USB · Ollama · offline
+  </p>
+
+  <script>
+    const steps = [...document.querySelectorAll('.step')];
+    const out = document.getElementById('out');
+    const cite = document.getElementById('cite');
+
+    function light(i) {
+      steps.forEach((s, idx) => s.classList.toggle('on', idx <= i));
+    }
+
+    async function run() {
+      const text = document.getElementById('doc').value.trim();
+      if (!text) { out.textContent = 'Empty document.'; cite.textContent=''; steps.forEach(s=>s.classList.remove('on')); return; }
+      out.textContent = 'Running…';
+      cite.textContent = '';
+      steps.forEach(s => s.classList.remove('on'));
+
+      const facts = text.split(/(?<=[.!?])\s+/).filter(Boolean);
+      for (let i = 0; i < steps.length; i++) {
+        light(i);
+        await new Promise(r => setTimeout(r, 220));
+      }
+
+      // toy retrieval: pick sentences with rights/legal keywords
+      const keys = /right|citizen|court|law|constitution|education|equality|arrest|administrative/i;
+      const hits = facts.filter(f => keys.test(f)).slice(0, 3);
+      const body = hits.length
+        ? hits.map((h, i) => `${i+1}. ${h}`).join('\n')
+        : 'No rights-related sentences found. Try a legal or policy text.';
+
+      out.textContent = body;
+      const year = new Date().getFullYear();
+      const style = document.querySelector('select')?.value || 'apa';
+      cite.textContent = hits.length
+        ? `Citation (APA mock): Shadrack Baraka Mwahanga. (${year}). Offline research notes [USB RAG]. Nairobi: Research in a Stick.`
+        : '';
+    }
+
+    document.getElementById('run').addEventListener('click', run);
+  </script>
+</body>
+</html>

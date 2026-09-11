@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>USSD Simulator · Playground</title>
+  <style>
+    :root {
+      --bg:#0b1220; --panel:#0f172a; --line:#1e293b; --text:#e2e8f0;
+      --muted:#64748b; --cyan:#22d3ee; --green:#34d399; --amber:#f59e0b; --pink:#f472b6;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      background: var(--bg); color: var(--text);
+      min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px;
+    }
+    header { max-width:900px; width:100%; margin-bottom:20px; }
+    .kicker { color:var(--cyan); letter-spacing:3px; font-size:12px; margin-bottom:8px; }
+    h1 { font-size:22px; margin-bottom:6px; }
+    .sub { color:var(--muted); font-size:13px; line-height:1.5; max-width:560px; }
+    .wrap { display:grid; grid-template-columns: 280px 1fr; gap:16px; max-width:900px; width:100%; }
+    @media (max-width:720px){ .wrap{ grid-template-columns:1fr; } }
+    .phone {
+      background:var(--panel); border:1px solid var(--line); border-radius:20px;
+      padding:16px; min-height:420px; display:flex; flex-direction:column;
+    }
+    .screen {
+      background:#020617; border:1px solid #0f172a; border-radius:8px;
+      min-height:220px; padding:14px; font-size:13px; line-height:1.55; white-space:pre-wrap;
+      color:var(--green);
+    }
+    .screen .hdr { color:#94a3b8; font-size:11px; margin-bottom:8px; letter-spacing:1px; }
+    .keys { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+    .key {
+      background:#111827; border:1px solid var(--line); border-radius:10px;
+      padding:14px 0; text-align:center; cursor:pointer; color:var(--text); font-size:16px;
+      user-select:none; transition: border-color .12s, transform .08s;
+    }
+    .key:hover { border-color:var(--cyan); }
+    .key:active { transform:scale(0.96); }
+    .key.accent { color:var(--green); border-color:#064e3b; }
+    .key.danger { color:#fca5a5; border-color:#7f1d1d; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; }
+    .panel h2 { font-size:14px; margin-bottom:12px; color:#94a3b8; letter-spacing:2px; }
+    .log { font-size:12px; color:var(--muted); line-height:1.7; max-height:360px; overflow:auto; }
+    .log b { color:var(--cyan); font-weight:500; }
+    .chip {
+      display:inline-block; font-size:11px; padding:3px 8px; border-radius:999px;
+      border:1px solid var(--line); color:var(--muted); margin:0 6px 6px 0;
+    }
+    a { color:var(--cyan); text-decoration:none; }
+    footer { margin-top:16px; font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="kicker">PLAYGROUND · ACCESS LAYER</div>
+    <h1>USSD session simulator</h1>
+    <p class="sub">Same flow as the attendance product: dial a code, navigate a menu, submit. Works on any phone in the field. This is a browser mock of the session protocol.</p>
+  </header>
+
+  <div class="wrap">
+    <div class="phone">
+      <div class="screen" id="screen"></div>
+      <div class="keys" id="keys"></div>
+    </div>
+    <div class="panel">
+      <h2>SESSION LOG</h2>
+      <div style="margin-bottom:12px">
+        <span class="chip">USSD</span>
+        <span class="chip">no app</span>
+        <span class="chip">no data</span>
+        <span class="chip">feature phone</span>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <footer>
+    Part of the access layer story. <a href="index.html">back to playground</a> ·
+    <a href="https://github.com/shadrackb1/ussd-attendance">ussd-attendance source</a>
+  </footer>
+
+  <script>
+    const screens = {
+      idle: {
+        title: 'USSD',
+        body: 'Dial *384# to begin',
+        keys: ['1','2','3','4','5','6','7','8','9','*','0','#']
+      },
+      menu: {
+        title: 'ATTENDANCE',
+        body: '1. Check in\n2. My status\n3. Help\n0. Exit',
+        keys: ['1','2','3','0','#','*']
+      },
+      courses: {
+        title: 'CHECK IN',
+        body: 'Select course:\n1. LAW 210\n2. CS 101\n3. ENG 205\n0. Back',
+        keys: ['1','2','3','0','#','*']
+      },
+      code: {
+        title: 'SESSION CODE',
+        body: 'Enter 4-digit session code\nshown in class:\n_ _ _ _',
+        keys: ['1','2','3','4','5','6','7','8','9','0','#','*']
+      },
+      ok: {
+        title: 'CONFIRMED',
+        body: 'You are checked in.\nLAW 210 · 14:02\nStatus: PRESENT\n\n1. Done',
+        keys: ['1','#','*']
+      },
+      fail: {
+        title: 'REJECTED',
+        body: 'Session code invalid\nor expired.\n\n1. Retry\n0. Back',
+        keys: ['1','0','#','*']
+      },
+      status: {
+        title: 'MY STATUS',
+        body: 'LAW 210  86%\nCS 101   91%\nENG 205  74%\n\n0. Back',
+        keys: ['0','#','*']
+      },
+      help: {
+        title: 'HELP',
+        body: 'Dial *384# each class.\nAsk lecturer for code.\nWorks offline.\n\n0. Back',
+        keys: ['0','#','*']
+      }
+    };
+
+    let state = 'idle';
+    let buffer = '';
+    let sessionId = 1;
+    const screen = document.getElementById('screen');
+    const keys = document.getElementById('keys');
+    const log = document.getElementById('log');
+
+    function logLine(html) {
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      log.prepend(div);
+    }
+
+    function render() {
+      const s = screens[state];
+      screen.innerHTML = `<div class="hdr">${s.title} · session #${sessionId}</div>${s.body}${state==='code' && buffer ? '\n\n'+buffer.padEnd(4,'_').split('').join(' ') : ''}`;
+      keys.innerHTML = '';
+      s.keys.forEach(k => {
+        const el = document.createElement('div');
+        el.className = 'key' + (k==='#' ? ' accent' : '') + (k==='*' ? ' danger' : '');
+        el.textContent = k;
+        el.addEventListener('click', () => press(k));
+        keys.appendChild(el);
+      });
+    }
+
+    function press(k) {
+      logLine(`<b>${k}</b>`);
+      if (state === 'idle') {
+        if (k === '#') { state = 'menu'; sessionId++; logLine('→ connected · gateway ok'); }
+        render(); return;
+      }
+      if (state === 'menu') {
+        if (k === '1') state = 'courses';
+        else if (k === '2') state = 'status';
+        else if (k === '3') state = 'help';
+        else if (k === '0') { state = 'idle'; logLine('session ended'); }
+        render(); return;
+      }
+      if (state === 'courses') {
+        if (k === '1' || k === '2' || k === '3') { state = 'code'; buffer = ''; logLine('→ enter session code'); }
+        else if (k === '0') state = 'menu';
+        render(); return;
+      }
+      if (state === 'code') {
+        if (k >= '0' && k <= '9' && buffer.length < 4) {
+          buffer += k;
+          logLine(`digit ${buffer.length}/4`);
+          if (buffer.length === 4) {
+            // demo: 1234 passes, anything else fails
+            if (buffer === '1234') {
+              state = 'ok';
+              logLine('✓ enrollment ok · device ok · code valid');
+            } else {
+              state = 'fail';
+              logLine('✗ code rejected');
+            }
+            buffer = '';
+          }
+        } else if (k === '*') { state = 'courses'; buffer = ''; }
+        render(); return;
+      }
+      if (state === 'ok') {
+        if (k === '1') { state = 'idle'; logLine('goodbye'); }
+        render(); return;
+      }
+      if (state === 'fail') {
+        if (k === '1') { state = 'code'; buffer = ''; }
+        else if (k === '0') state = 'courses';
+        render(); return;
+      }
+      if (state === 'status' || state === 'help') {
+        if (k === '0') state = 'menu';
+        render(); return;
+      }
+    }
+
+    logLine('ready · dial with keypad');
+    render();
+  </script>
+</body>
+</html>
