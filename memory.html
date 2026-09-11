@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memory · Playground</title>
+  <style>
+    body { margin:0; background:#0b1220; color:#e2e8f0; font-family:ui-monospace,Menlo,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:24px; }
+    h1 { font-size:18px; margin-bottom:8px; }
+    .hud { color:#64748b; font-size:13px; margin-bottom:16px; display:flex; gap:20px; }
+    .board { display:grid; grid-template-columns: repeat(4, 72px); gap:10px; }
+    .card {
+      width:72px; height:72px; border-radius:10px; border:1px solid #1e293b;
+      background:#0f172a; cursor:pointer; font-size:28px; display:flex; align-items:center; justify-content:center;
+      transition: transform .15s, border-color .15s;
+    }
+    .card:hover { border-color:#818cf8; }
+    .card.open { background:#111827; border-color:#22d3ee; transform: scale(1.03); }
+    .card.done { border-color:#34d399; opacity:.55; pointer-events:none; }
+    p { color:#64748b; font-size:12px; margin-top:16px; }
+    a { color:#22d3ee; text-decoration:none; }
+    button {
+      margin-top:16px; background:transparent; color:#22d3ee; border:1px solid #22d3ee;
+      border-radius:8px; padding:8px 16px; font-family:inherit; cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Memory</h1>
+  <div class="hud"><span>Moves <b id="moves">0</b></span><span>Time <b id="time">0</b>s</span><span>Pairs <b id="pairs">0</b>/8</span></div>
+  <div class="board" id="board"></div>
+  <button id="reset">New game</button>
+  <p><a href="index.html">back to playground</a></p>
+  <script>
+    const ICONS = ['⚡','🧪','📐','⌨️','🛰️','🧠','🔒','📡'];
+    let open = [], done = new Set(), moves = 0, pairs = 0, t0 = null, timer = null;
+    const board = document.getElementById('board');
+    function shuffle(a) {
+      for (let i=a.length-1;i>0;i--) { const j=(Math.random()*(i+1))|0; [a[i],a[j]]=[a[j],a[i]]; }
+      return a;
+    }
+    function sync() {
+      document.getElementById('moves').textContent = moves;
+      document.getElementById('pairs').textContent = pairs;
+    }
+    function tick() {
+      if (!t0) return;
+      document.getElementById('time').textContent = ((Date.now()-t0)/1000)|0;
+    }
+    function startTimer() {
+      if (t0) return;
+      t0 = Date.now();
+      timer = setInterval(tick, 500);
+    }
+    function init() {
+      clearInterval(timer); t0=null; timer=null;
+      open=[]; done=new Set(); moves=0; pairs=0; sync(); tick();
+      board.innerHTML='';
+      const deck = shuffle([...ICONS, ...ICONS]);
+      deck.forEach((icon, i) => {
+        const el = document.createElement('div');
+        el.className = 'card';
+        el.dataset.i = i;
+        el.dataset.icon = icon;
+        el.textContent = '';
+        el.addEventListener('click', () => flip(el));
+        board.appendChild(el);
+      });
+    }
+    function flip(el) {
+      if (el.classList.contains('open') || el.classList.contains('done') || open.length>=2) return;
+      startTimer();
+      el.classList.add('open');
+      el.textContent = el.dataset.icon;
+      open.push(el);
+      if (open.length < 2) return;
+      moves++; sync();
+      const [a,b] = open;
+      if (a.dataset.icon === b.dataset.icon) {
+        a.classList.add('done'); b.classList.add('done');
+        pairs++; open=[]; sync();
+        if (pairs===8) clearInterval(timer);
+      } else {
+        setTimeout(() => {
+          a.classList.remove('open'); b.classList.remove('open');
+          a.textContent=''; b.textContent='';
+          open=[];
+        }, 650);
+      }
+    }
+    document.getElementById('reset').addEventListener('click', init);
+    init();
+  </script>
+</body>
+</html>

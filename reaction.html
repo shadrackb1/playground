@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reaction · Playground</title>
+  <style>
+    body { margin:0; background:#0b1220; color:#e2e8f0; font-family:ui-monospace,Menlo,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; padding:24px; }
+    h1 { font-size:18px; margin-bottom:8px; }
+    .hud { color:#64748b; font-size:13px; margin-bottom:16px; display:flex; gap:20px; }
+    #pad {
+      width:min(520px, 92vw); height:280px; border-radius:14px; border:1px solid #1e293b;
+      display:flex; align-items:center; justify-content:center; cursor:pointer;
+      user-select:none; font-size:18px; transition: background .12s;
+    }
+    #pad.idle { background:#0f172a; color:#64748b; }
+    #pad.wait { background:#1c1010; color:#fca5a5; }
+    #pad.go { background:#052e16; color:#4ade80; }
+    #pad.result { background:#0c1a2e; color:#7dd3fc; }
+    p { color:#64748b; font-size:12px; margin-top:16px; max-width:420px; text-align:center; line-height:1.5; }
+    a { color:#22d3ee; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <h1>Reaction</h1>
+  <div class="hud"><span>Last <b id="last">—</b> ms</span><span>Best <b id="best">—</b> ms</span><span>Tries <b id="n">0</b></span></div>
+  <div id="pad" class="idle">Click to start</div>
+  <p>When the pad turns green, click as fast as you can. Clicking early restarts the wait. <a href="index.html">back</a></p>
+  <script>
+    const pad = document.getElementById('pad');
+    let state='idle', t0=0, timeout=null, n=0;
+    let best = +(localStorage.getItem('rx-best')||0) || null;
+    if (best) document.getElementById('best').textContent = best;
+    function set(cls, text) { pad.className = cls; pad.textContent = text; }
+    function arm() {
+      clearTimeout(timeout);
+      state='wait'; set('wait', 'Wait for green…');
+      timeout = setTimeout(() => {
+        state='go'; t0=performance.now(); set('go', 'CLICK');
+      }, 1200 + Math.random()*2800);
+    }
+    pad.addEventListener('click', () => {
+      if (state==='idle' || state==='result') { arm(); return; }
+      if (state==='wait') {
+        clearTimeout(timeout);
+        state='idle'; set('idle', 'Too soon · click to retry');
+        return;
+      }
+      if (state==='go') {
+        const ms = Math.round(performance.now() - t0);
+        n++;
+        document.getElementById('n').textContent = n;
+        document.getElementById('last').textContent = ms;
+        if (!best || ms < best) {
+          best = ms; localStorage.setItem('rx-best', best);
+          document.getElementById('best').textContent = best;
+        }
+        state='result'; set('result', ms + ' ms · click to go again');
+      }
+    });
+  </script>
+</body>
+</html>
