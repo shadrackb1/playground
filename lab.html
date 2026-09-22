@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>Lab · Shadrack Baraka Mwahanga · Constraint is the brief</title>
+<meta name="description" content="Interactive generative lab by Shadrack Baraka Mwahanga — flow field, particle life, attractor, Chladni, Julia, soft bodies."/>
+<meta name="author" content="Shadrack Baraka Mwahanga"/>
+<style>
+:root{
+  --void:#050810;
+  --ink:#E2E8F0;
+  --mute:#94A3B8;
+  --teal:#2DD4BF;
+  --amber:#FBBF24;
+  --glass:rgba(15,23,42,.55);
+  --edge:rgba(94,234,212,.22);
+  --hi:rgba(94,234,212,.45);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--void);color:var(--ink);font-family:var(--sans);overflow:hidden}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+.hud{position:fixed;z-index:10;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(148,163,184,.18);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.35)}
+#brand{top:16px;left:16px;padding:14px 16px;max-width:min(340px,calc(100vw - 32px))}
+#brand h1{margin:0;font:650 15px/1.2 var(--sans);letter-spacing:.01em}
+#brand p{margin:6px 0 0;font:400 11px/1.45 var(--mono);color:var(--mute)}
+#biomes{bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:8px;max-width:calc(100vw - 24px);
+  overflow-x:auto;scrollbar-width:none}
+#biomes::-webkit-scrollbar{display:none}
+.biome{appearance:none;border:1px solid transparent;background:transparent;color:var(--mute);
+  font:500 11px/1 var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:12px 14px;border-radius:10px;
+  cursor:pointer;min-height:44px;white-space:nowrap;transition:color .2s,border-color .2s,background .2s}
+.biome:hover{color:var(--ink);background:rgba(45,212,191,.08)}
+.biome:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.biome[aria-pressed="true"]{color:var(--void);background:var(--teal);border-color:var(--teal)}
+#tele{top:16px;right:16px;padding:12px 14px;font:400 11px/1.5 var(--mono);color:var(--mute);min-width:180px}
+#tele strong{color:var(--teal);font-weight:600}
+#hint{bottom:88px;left:50%;transform:translateX(-50%);padding:10px 14px;font:400 12px/1.4 var(--sans);color:var(--ink);
+  max-width:min(420px,calc(100vw - 32px));text-align:center;opacity:.92;pointer-events:none;transition:opacity .6s}
+#hint.fade{opacity:0}
+@media (max-width:640px){
+  #tele{top:auto;bottom:88px;right:12px;min-width:0}
+  #brand{max-width:calc(100vw - 24px)}
+  .biome{padding:12px 10px}
+}
+@media (prefers-reduced-motion:reduce){
+  #hint{transition:none}
+}
+</style>
+</head>
+<body>
+<canvas id="stage" aria-label="Interactive generative simulation"></canvas>
+
+<div class="hud" id="brand">
+  <h1>Shadrack Lab · six systems that do not repeat</h1>
+  <p id="tag">move · hold · drag — the cursor is the only control that matters</p>
+</div>
+
+<div class="hud" id="tele" aria-live="polite">
+  <div>biome · <strong id="tName">flow</strong></div>
+  <div>agents · <strong id="tN">0</strong></div>
+  <div>energy · <strong id="tE">0.00</strong></div>
+  <div>t+ <strong id="tT">0</strong>s</div>
+</div>
+
+<div class="hud" id="hint">Drag to pour energy. Hold still and the field breathes on its own.</div>
+
+<div class="hud" id="biomes" role="toolbar" aria-label="Simulation biomes">
+  <button class="biome" data-b="flow" aria-pressed="true">flow field</button>
+  <button class="biome" data-b="life" aria-pressed="false">particle life</button>
+  <button class="biome" data-b="attractor" aria-pressed="false">attractor</button>
+  <button class="biome" data-b="chladni" aria-pressed="false">chladni</button>
+  <button class="biome" data-b="julia" aria-pressed="false">julia</button>
+  <button class="biome" data-b="bodies" aria-pressed="false">soft bodies</button>
+</div>
+
+<script>
+(() => {
+"use strict";
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const tName = document.getElementById("tName");
+const tN = document.getElementById("tN");
+const tE = document.getElementById("tE");
+const tT = document.getElementById("tT");
+const hint = document.getElementById("hint");
+const tag = document.getElementById("tag");
+
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = "#050810";
+  ctx.fillRect(0, 0, W, H);
+}
+addEventListener("resize", resize, { passive: true });
+resize();
+
+// ── pointer / god-parameter ──────────────────────────────────────────
+const ptr = { x: W * 0.5, y: H * 0.5, px: 0, py: 0, vx: 0, vy: 0, down: false, last: 0, energy: 0 };
+function onMove(x, y) {
+  ptr.px = ptr.x; ptr.py = ptr.y;
+  ptr.x = x; ptr.y = y;
+  const dx = ptr.x - ptr.px, dy = ptr.y - ptr.py;
+  ptr.vx = ptr.vx * 0.7 + dx * 0.3;
+  ptr.vy = ptr.vy * 0.7 + dy * 0.3;
+  ptr.energy = Math.min(1.5, ptr.energy + Math.hypot(dx, dy) * 0.004);
+  ptr.last = performance.now();
+  if (hint && !hint.classList.contains("fade")) hint.classList.add("fade");
+}
+canvas.addEventListener("pointermove", e => onMove(e.clientX, e.clientY), { passive: true });
+canvas.addEventListener("pointerdown", e => { ptr.down = true; canvas.setPointerCapture(e.pointerId); onMove(e.clientX, e.clientY); });
+canvas.addEventListener("pointerup", () => { ptr.down = false; });
+canvas.addEventListener("pointerleave", () => { ptr.down = false; });
+
+// auto-drift so idle still lives
+let seedT = 0;
+
+// ── noise (simplex-ish value noise, cheap) ───────────────────────────
+function hash(x, y) {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+function vnoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function curl(x, y, t) {
+  const e = 0.01;
+  const n1 = vnoise(x, y + e + t), n2 = vnoise(x, y - e + t);
+  const n3 = vnoise(x + e, y + t), n4 = vnoise(x - e, y + t);
+  return { x: (n1 - n2) / (2 * e), y: -(n3 - n4) / (2 * e) };
+}
+
+// ── biomes ───────────────────────────────────────────────────────────
+const TEAL = "45,212,191", AMBER = "251,191,36", PINK = "244,114,182", SKY = "125,211,252";
+
+function initFlow() {
+  const n = Math.min(2800, Math.floor(W * H / 420));
+  const p = new Float32Array(n * 4); // x,y,vx,vy
+  for (let i = 0; i < n; i++) {
+    p[i * 4] = Math.random() * W;
+    p[i * 4 + 1] = Math.random() * H;
+    p[i * 4 + 2] = 0; p[i * 4 + 3] = 0;
+  }
+  return { n, p, hue: 0 };
+}
+function stepFlow(s, t) {
+  // trail fade — the hypnosis layer
+  ctx.fillStyle = "rgba(5,8,16,0.055)";
+  ctx.fillRect(0, 0, W, H);
+  s.hue = (s.hue + 0.15) % 360;
+  const sc = 0.0022;
+  for (let i = 0; i < s.n; i++) {
+    let x = s.p[i * 4], y = s.p[i * 4 + 1];
+    const c = curl(x * sc, y * sc, t * 0.15);
+    let ax = c.x * 0.55, ay = c.y * 0.55;
+    // cursor vortex + attract
+    const dx = ptr.x - x, dy = ptr.y - y;
+    const d2 = dx * dx + dy * dy + 40;
+    const f = (ptr.down ? 2200 : 900) / d2;
+    ax += -dy * f * 0.001 + dx * f * 0.00015;
+    ay += dx * f * 0.001 + dy * f * 0.00015;
+    ax += ptr.vx * 0.02 * ptr.energy;
+    ay += ptr.vy * 0.02 * ptr.energy;
+    s.p[i * 4 + 2] = s.p[i * 4 + 2] * 0.92 + ax;
+    s.p[i * 4 + 3] = s.p[i * 4 + 3] * 0.92 + ay;
+    const ox = x, oy = y;
+    x += s.p[i * 4 + 2]; y += s.p[i * 4 + 3];
+    if (x < -20) x = W + 20; if (x > W + 20) x = -20;
+    if (y < -20) y = H + 20; if (y > H + 20) y = -20;
+    s.p[i * 4] = x; s.p[i * 4 + 1] = y;
+    const sp = Math.hypot(s.p[i * 4 + 2], s.p[i * 4 + 3]);
+    const col = sp > 2.2 ? AMBER : TEAL;
+    ctx.strokeStyle = `rgba(${col},${0.12 + Math.min(0.5, sp * 0.08)})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(x, y); ctx.stroke();
+  }
+  return s.n;
+}
+
+function initLife() {
+  const n = Math.min(900, Math.floor(W * H / 1400));
+  const p = new Float32Array(n * 5); // x,y,vx,vy,type
+  for (let i = 0; i < n; i++) {
+    p[i * 5] = Math.random() * W;
+    p[i * 5 + 1] = Math.random() * H;
+    p[i * 5 + 4] = i % 4;
+  }
+  // 4 species attraction matrix — emergent, not scripted
+  const M = new Float32Array(16);
+  for (let i = 0; i < 16; i++) M[i] = (Math.sin(i * 2.7 + 1.3) * 0.9);
+  return { n, p, M };
+}
+function stepLife(s) {
+  ctx.fillStyle = "rgba(5,8,16,0.12)";
+  ctx.fillRect(0, 0, W, H);
+  const cols = [TEAL, AMBER, PINK, SKY];
+  const n = s.n, p = s.p, M = s.M;
+  // spatial hash would be nicer; O(n²) sample for punch
+  const stride = n > 500 ? 2 : 1;
+  for (let i = 0; i < n; i++) {
+    let ax = 0, ay = 0;
+    const xi = p[i * 5], yi = p[i * 5 + 1], ti = p[i * 5 + 4];
+    for (let j = 0; j < n; j += stride) {
+      if (i === j) continue;
+      const dx = p[j * 5] - xi, dy = p[j * 5 + 1] - yi;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < 1) continue;
+      if (d2 > 10000) continue;
+      const d = Math.sqrt(d2);
+      const force = M[(ti * 4 + p[j * 5 + 4]) | 0] * (1 - d / 100);
+      ax += (dx / d) * force;
+      ay += (dy / d) * force;
+    }
+    // cursor gravity well
+    const cdx = ptr.x - xi, cdy = ptr.y - yi;
+    const cd = Math.hypot(cdx, cdy) + 8;
+    const pull = (ptr.down ? 2.2 : 0.55) * ptr.energy + 0.08;
+    ax += (cdx / cd) * pull * 8;
+    ay += (cdy / cd) * pull * 8;
+    p[i * 5 + 2] = (p[i * 5 + 2] + ax * 0.05) * 0.86;
+    p[i * 5 + 3] = (p[i * 5 + 3] + ay * 0.05) * 0.86;
+    p[i * 5] = (p[i * 5] + p[i * 5 + 2] + W) % W;
+    p[i * 5 + 1] = (p[i * 5 + 1] + p[i * 5 + 3] + H) % H;
+  }
+  for (let i = 0; i < n; i++) {
+    ctx.fillStyle = `rgba(${cols[p[i * 5 + 4] | 0]},0.85)`;
+    ctx.beginPath();
+    ctx.arc(p[i * 5], p[i * 5 + 1], 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  return n;
+}
+
+function initAttractor() {
+  return { x: 0.1, y: 0, z: 0, trail: [], mode: 0 };
+}
+function stepAttractor(s, t) {
+  ctx.fillStyle = "rgba(5,8,16,0.04)";
+  ctx.fillRect(0, 0, W, H);
+  // mouse morphs Thomas ↔ Lorenz-like params — never the same orbit
+  const mx = (ptr.x / W - 0.5) * 2;
+  const my = (ptr.y / H - 0.5) * 2;
+  const b = 0.18 + mx * 0.08;
+  const dt = 0.055 + ptr.energy * 0.02;
+  const steps = reduce ? 8 : 28;
+  for (let i = 0; i < steps; i++) {
+    let dx, dy, dz;
+    if (ptr.down) {
+      // Lorenz-ish when holding
+      const sN = 10 + mx * 4, r = 28 + my * 6, bb = 8 / 3;
+      dx = sN * (s.y - s.x);
+      dy = s.x * (r - s.z) - s.y;
+      dz = s.x * s.y - bb * s.z;
+      s.x += dx * dt * 0.02; s.y += dy * dt * 0.02; s.z += dz * dt * 0.02;
+    } else {
+      dx = Math.sin(s.y) - b * s.x;
+      dy = Math.sin(s.z) - b * s.y;
+      dz = Math.sin(s.x) - b * s.z;
+      s.x += dx * dt; s.y += dy * dt; s.z += dz * dt;
+    }
+    const px = W * 0.5 + s.x * 85 + mx * 40;
+    const py = H * 0.5 + s.y * 85 + my * 30;
+    s.trail.push(px, py);
+    if (s.trail.length > 2400) s.trail.splice(0, 2);
+  }
+  ctx.beginPath();
+  for (let i = 0; i < s.trail.length; i += 2) {
+    if (i === 0) ctx.moveTo(s.trail[i], s.trail[i + 1]);
+    else ctx.lineTo(s.trail[i], s.trail[i + 1]);
+  }
+  ctx.strokeStyle = `rgba(${TEAL},0.55)`;
+  ctx.lineWidth = 1.15;
+  ctx.stroke();
+  // head beacon with spring feel
+  const hx = s.trail[s.trail.length - 2], hy = s.trail[s.trail.length - 1];
+  const r = 4 + Math.sin(t * 4) * 1.5 + ptr.energy * 2;
+  ctx.fillStyle = `rgba(${AMBER},0.9)`;
+  ctx.beginPath(); ctx.arc(hx, hy, r, 0, Math.PI * 2); ctx.fill();
+  return 1200;
+}
+
+function initChladni() {
+  const n = Math.min(1600, Math.floor(W * H / 700));
+  const p = new Float32Array(n * 3); // x,y,salt
+  for (let i = 0; i < n; i++) {
+    p[i * 3] = Math.random() * W;
+    p[i * 3 + 1] = Math.random() * H;
+    p[i * 3 + 2] = Math.random();
+  }
+  return { n, p, m: 3, nMode: 2 };
+}
+function stepChladni(s) {
+  ctx.fillStyle = "rgba(5,8,16,0.18)";
+  ctx.fillRect(0, 0, W, H);
+  // mouse: x→m, y→nMode continuous modes
+  s.m = 1.5 + (ptr.x / W) * 5;
+  s.nMode = 1.5 + (ptr.y / H) * 5;
+  const m = s.m, nm = s.nMode;
+  const n = s.n, p = s.p;
+  for (let i = 0; i < n; i++) {
+    const x = p[i * 3] / W, y = p[i * 3 + 1] / H;
+    // Chladni plate displacement
+    const f = Math.cos(nm * Math.PI * x) * Math.cos(m * Math.PI * y)
+            - Math.cos(m * Math.PI * x) * Math.cos(nm * Math.PI * y);
+    // gradient descent toward nodal lines f=0
+    const e = 0.008;
+    const fx = (Math.cos(nm * Math.PI * (x + e)) * Math.cos(m * Math.PI * y)
+              - Math.cos(m * Math.PI * (x + e)) * Math.cos(nm * Math.PI * y)) - f;
+    const fy = (Math.cos(nm * Math.PI * x) * Math.cos(m * Math.PI * (y + e))
+              - Math.cos(m * Math.PI * x) * Math.cos(nm * Math.PI * (y + e))) - f;
+    let vx = -fx * 180, vy = -fy * 180;
+    // shake from cursor speed so sand dances
+    vx += ptr.vx * 0.15; vy += ptr.vy * 0.15;
+    if (ptr.down) {
+      const dx = p[i * 3] - ptr.x, dy = p[i * 3 + 1] - ptr.y;
+      const d = Math.hypot(dx, dy) + 4;
+      vx += (dx / d) * 30; vy += (dy / d) * 30;
+    }
+    p[i * 3] += vx * 0.016;
+    p[i * 3 + 1] += vy * 0.016;
+    if (p[i * 3] < 0) p[i * 3] = 0; if (p[i * 3] > W) p[i * 3] = W;
+    if (p[i * 3 + 1] < 0) p[i * 3 + 1] = 0; if (p[i * 3 + 1] > H) p[i * 3 + 1] = H;
+    const near = Math.abs(f);
+    const col = near < 0.08 ? AMBER : TEAL;
+    ctx.fillStyle = `rgba(${col},${0.35 + (1 - Math.min(1, near * 3)) * 0.55})`;
+    ctx.fillRect(p[i * 3], p[i * 3 + 1], 1.6, 1.6);
+  }
+  return n;
+}
+
+function initJulia() {
+  return { cx: -0.7, cy: 0.27015, zoom: 1, img: null, bw: 0, bh: 0 };
+}
+function stepJulia(s) {
+  // c follows mouse in a bulb-slice — infinite unique mandalas
+  const tx = -0.8 + (ptr.x / W) * 1.2;
+  const ty = -0.4 + (ptr.y / H) * 0.8;
+  s.cx += (tx - s.cx) * 0.04;
+  s.cy += (ty - s.cy) * 0.04;
+  if (ptr.down) s.zoom *= 1.012; else s.zoom *= 0.995;
+  s.zoom = Math.max(0.35, Math.min(8, s.zoom));
+  const bw = Math.floor(W / 2), bh = Math.floor(H / 2);
+  if (!s.img || s.bw !== bw || s.bh !== bh) {
+    s.img = ctx.createImageData(bw, bh);
+    s.bw = bw; s.bh = bh;
+  }
+  const data = s.img.data;
+  const maxI = reduce ? 40 : 70;
+  const sx = 1.6 * s.zoom / bw, sy = 1.6 * s.zoom / bh;
+  for (let j = 0; j < bh; j++) {
+    const zy0 = (j - bh / 2) * sy;
+    for (let i = 0; i < bw; i++) {
+      let zx = (i - bw / 2) * sx, zy = zy0;
+      let k = 0;
+      for (; k < maxI; k++) {
+        const x2 = zx * zx, y2 = zy * zy;
+        if (x2 + y2 > 4) break;
+        zy = 2 * zx * zy + s.cy;
+        zx = x2 - y2 + s.cx;
+      }
+      const o = (j * bw + i) * 4;
+      if (k === maxI) {
+        data[o] = 5; data[o + 1] = 8; data[o + 2] = 16; data[o + 3] = 255;
+      } else {
+        const u = k / maxI;
+        // teal → amber rim, glassy
+        data[o] = 45 + u * 200;
+        data[o + 1] = 212 - u * 120;
+        data[o + 2] = 191 - u * 130;
+        data[o + 3] = 255;
+      }
+    }
+  }
+  ctx.putImageData(s.img, 0, 0);
+  // soft vignette glass edge
+  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.7);
+  g.addColorStop(0, "rgba(5,8,16,0)");
+  g.addColorStop(1, "rgba(5,8,16,0.45)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  return bw * bh / 1000;
+}
+
+function initBodies() {
+  const blobs = [];
+  for (let i = 0; i < 7; i++) {
+    blobs.push({
+      x: W * (0.2 + 0.6 * Math.random()),
+      y: H * (0.2 + 0.6 * Math.random()),
+      vx: 0, vy: 0, r: 40 + Math.random() * 50,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+  return { blobs };
+}
+function stepBodies(s, t) {
+  ctx.fillStyle = "rgba(5,8,16,0.16)";
+  ctx.fillRect(0, 0, W, H);
+  // verlet-ish soft circles with spring radius + pairwise push
+  const b = s.blobs;
+  for (let i = 0; i < b.length; i++) {
+    const o = b[i];
+    o.phase += 0.02;
+    const wob = 1 + 0.12 * Math.sin(o.phase * 2.1) * (0.4 + ptr.energy);
+    const dx = ptr.x - o.x, dy = ptr.y - o.y;
+    const d = Math.hypot(dx, dy) + 1;
+    const pull = ptr.down ? 0.55 : 0.12;
+    o.vx += (dx / d) * pull * (1 - d / (Math.max(W, H) * 0.5));
+    o.vy += (dy / d) * pull * (1 - d / (Math.max(W, H) * 0.5));
+    o.vx *= 0.96; o.vy *= 0.96;
+    o.x += o.vx + Math.sin(t + o.phase) * 0.3;
+    o.y += o.vy + Math.cos(t * 0.9 + o.phase) * 0.3;
+    for (let j = i + 1; j < b.length; j++) {
+      const p = b[j];
+      const ex = p.x - o.x, ey = p.y - o.y;
+      const ed = Math.hypot(ex, ey) + 0.01;
+      const min = (o.r + p.r) * 0.75;
+      if (ed < min) {
+        const push = (min - ed) / min * 0.8;
+        o.vx -= (ex / ed) * push; o.vy -= (ey / ed) * push;
+        p.vx += (ex / ed) * push; p.vy += (ey / ed) * push;
+      }
+    }
+  }
+  // glass metaballs via layered translucent circles
+  for (const o of b) {
+    const r = o.r * wob;
+    const g = ctx.createRadialGradient(o.x - r * 0.2, o.y - r * 0.2, r * 0.1, o.x, o.y, r);
+    g.addColorStop(0, "rgba(94,234,212,0.28)");
+    g.addColorStop(0.55, "rgba(45,212,191,0.14)");
+    g.addColorStop(1, "rgba(45,212,191,0.02)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(94,234,212,0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, Math.PI * 2); ctx.stroke();
+  }
+  return b.length;
+}
+
+const BIOMES = {
+  flow: { init: initFlow, step: stepFlow, tag: "curl-noise rivers · drag to pour a vortex" },
+  life: { init: initLife, step: stepLife, tag: "four species · attraction matrix evolves on its own" },
+  attractor: { init: initAttractor, step: stepAttractor, tag: "hold for Lorenz · release for Thomas · mouse bends ρ" },
+  chladni: { init: initChladni, step: stepChladni, tag: "sand finds the nodal lines · mouse tunes m, n" },
+  julia: { init: initJulia, step: stepJulia, tag: "c rides the cursor · hold to dive into the set" },
+  bodies: { init: initBodies, step: stepBodies, tag: "soft glass blobs · hold to herd them" },
+};
+
+let biome = "flow";
+let state = BIOMES.flow.init();
+let t0 = performance.now();
+
+function setBiome(name) {
+  biome = name;
+  state = BIOMES[name].init();
+  ctx.fillStyle = "#050810";
+  ctx.fillRect(0, 0, W, H);
+  tName.textContent = name;
+  tag.textContent = BIOMES[name].tag;
+  document.querySelectorAll(".biome").forEach(btn => {
+    btn.setAttribute("aria-pressed", btn.dataset.b === name ? "true" : "false");
+  });
+}
+document.getElementById("biomes").addEventListener("click", e => {
+  const btn = e.target.closest(".biome");
+  if (btn) setBiome(btn.dataset.b);
+});
+
+// keyboard 1-6
+addEventListener("keydown", e => {
+  const keys = ["flow", "life", "attractor", "chladni", "julia", "bodies"];
+  const i = parseInt(e.key, 10) - 1;
+  if (i >= 0 && i < keys.length) setBiome(keys[i]);
+});
+
+function frame(now) {
+  const t = (now - t0) / 1000;
+  // idle auto-god: circle slowly so the page is never dead
+  const idle = (now - ptr.last) / 1000;
+  if (idle > 2.5 && !reduce) {
+    const a = t * 0.25;
+    ptr.px = ptr.x; ptr.py = ptr.y;
+    ptr.x = W * 0.5 + Math.cos(a) * Math.min(W, H) * 0.18;
+    ptr.y = H * 0.5 + Math.sin(a * 1.3) * Math.min(W, H) * 0.14;
+    ptr.vx = (ptr.x - ptr.px) * 0.5;
+    ptr.vy = (ptr.y - ptr.py) * 0.5;
+    ptr.energy = Math.max(ptr.energy * 0.98, 0.25);
+  }
+  ptr.energy *= 0.985;
+  ptr.vx *= 0.9; ptr.vy *= 0.9;
+
+  const n = BIOMES[biome].step(state, t) | 0;
+  tN.textContent = String(n);
+  tE.textContent = ptr.energy.toFixed(2);
+  tT.textContent = String(Math.floor(t));
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+setTimeout(() => hint.classList.add("fade"), 6000);
+})();
+</script>
+</body>
+</html>
