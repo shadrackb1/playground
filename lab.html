@@ -385,8 +385,17 @@ function stepJulia(s) {
       }
     }
   }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.putImageData(s.img, 0, 0);
-  // soft vignette glass edge
+  ctx.restore();
+  // cover rest of canvas if DPR/transform drew only top-left
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (bw < canvas.width || bh < canvas.height) {
+    ctx.drawImage(canvas, 0, 0, bw, bh, 0, 0, canvas.width, canvas.height);
+  }
+  ctx.restore();
   const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.7);
   g.addColorStop(0, "rgba(5,8,16,0)");
   g.addColorStop(1, "rgba(5,8,16,0.45)");
@@ -415,7 +424,7 @@ function stepBodies(s, t) {
   for (let i = 0; i < b.length; i++) {
     const o = b[i];
     o.phase += 0.02;
-    const wob = 1 + 0.12 * Math.sin(o.phase * 2.1) * (0.4 + ptr.energy);
+    o.wob = 1 + 0.12 * Math.sin(o.phase * 2.1) * (0.4 + ptr.energy);
     const dx = ptr.x - o.x, dy = ptr.y - o.y;
     const d = Math.hypot(dx, dy) + 1;
     const pull = ptr.down ? 0.55 : 0.12;
@@ -438,7 +447,7 @@ function stepBodies(s, t) {
   }
   // glass metaballs via layered translucent circles
   for (const o of b) {
-    const r = o.r * wob;
+    const r = o.r * (o.wob || 1);
     const g = ctx.createRadialGradient(o.x - r * 0.2, o.y - r * 0.2, r * 0.1, o.x, o.y, r);
     g.addColorStop(0, "rgba(94,234,212,0.28)");
     g.addColorStop(0.55, "rgba(45,212,191,0.14)");
