@@ -159,7 +159,8 @@ function initFlow() {
 }
 function stepFlow(s, t) {
   // trail fade — the hypnosis layer
-  ctx.fillStyle = "rgba(5,8,16,0.055)";
+  // slightly longer trails — more life on the page
+  ctx.fillStyle = "rgba(5,8,16,0.042)";
   ctx.fillRect(0, 0, W, H);
   s.hue = (s.hue + 0.15) % 360;
   const sc = 0.0022;
