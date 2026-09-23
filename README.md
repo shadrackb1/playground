@@ -1,14 +1,14 @@
 # Playground
 
-Mini games, product mocks, and generative labs. No frameworks on the games. Each HTML file is the whole app.
+Mini games, product mocks, and one generative lab. Games have no frameworks; each HTML file is the whole app.
 
-## Stay here
+## Lab
 
 | Lab | What it is |
 | --- | --- |
-| [Lab](./lab.html) | Six interactive systems: curl-noise flow field, particle life, strange attractor, Chladni sand, Julia morph, soft glass bodies. Cursor is the only control. |
+| [lab.html](./lab.html) | Flow field, particle life, attractor, Chladni sand, Julia, soft bodies. |
 
-Open [lab.html](./lab.html) and leave it running. Idle mode keeps the field alive.
+Open it and leave it running. Keys `1`–`6` switch biomes.
 
 ## Games
 

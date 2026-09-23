@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <title>Lab · Shadrack Baraka Mwahanga · Constraint is the brief</title>
-<meta name="description" content="Interactive generative lab by Shadrack Baraka Mwahanga — flow field, particle life, attractor, Chladni, Julia, soft bodies."/>
+<meta name="description" content="Shadrack Lab: flow field, particle life, attractor, Chladni, Julia, soft bodies."/>
 <meta name="author" content="Shadrack Baraka Mwahanga"/>
 <style>
 :root{
@@ -55,8 +55,8 @@ html,body{margin:0;height:100%;background:var(--void);color:var(--ink);font-fami
 <canvas id="stage" aria-label="Interactive generative simulation"></canvas>
 
 <div class="hud" id="brand">
-  <h1>Shadrack Lab · six systems that do not repeat</h1>
-  <p id="tag">move · hold · drag — the cursor is the only control that matters</p>
+  <h1>Shadrack Lab</h1>
+  <p id="tag">flow fields, sand tables, fractals</p>
 </div>
 
 <div class="hud" id="tele" aria-live="polite">
@@ -66,7 +66,7 @@ html,body{margin:0;height:100%;background:var(--void);color:var(--ink);font-fami
   <div>t+ <strong id="tT">0</strong>s</div>
 </div>
 
-<div class="hud" id="hint">Drag to pour energy. Hold still and the field breathes on its own.</div>
+<div class="hud" id="hint">Keys 1–6. Leave the mouse alone and it keeps going.</div>
 
 <div class="hud" id="biomes" role="toolbar" aria-label="Simulation biomes">
   <button class="biome" data-b="flow" aria-pressed="true">flow field</button>
@@ -463,12 +463,12 @@ function stepBodies(s, t) {
 }
 
 const BIOMES = {
-  flow: { init: initFlow, step: stepFlow, tag: "curl-noise rivers · drag to pour a vortex" },
-  life: { init: initLife, step: stepLife, tag: "four species · attraction matrix evolves on its own" },
-  attractor: { init: initAttractor, step: stepAttractor, tag: "hold for Lorenz · release for Thomas · mouse bends ρ" },
-  chladni: { init: initChladni, step: stepChladni, tag: "sand finds the nodal lines · mouse tunes m, n" },
-  julia: { init: initJulia, step: stepJulia, tag: "c rides the cursor · hold to dive into the set" },
-  bodies: { init: initBodies, step: stepBodies, tag: "soft glass blobs · hold to herd them" },
+  flow: { init: initFlow, step: stepFlow, tag: "curl-noise rivers" },
+  life: { init: initLife, step: stepLife, tag: "four species, emergent herds" },
+  attractor: { init: initAttractor, step: stepAttractor, tag: "Thomas / Lorenz" },
+  chladni: { init: initChladni, step: stepChladni, tag: "sand on nodal lines" },
+  julia: { init: initJulia, step: stepJulia, tag: "Julia set" },
+  bodies: { init: initBodies, step: stepBodies, tag: "soft bodies" },
 };
 
 let biome = "flow";
